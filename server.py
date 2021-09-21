@@ -7,11 +7,51 @@ import cv2
 import sys
 from datetime import datetime as dt
 
+from PIL import Image
+import torch
+import torch.nn as nn
+from torchvision import transforms
+from torch.autograd import Variable
+
 # Keep track of our processes
 PROCESSES = []
 
+# Torch transform
+p = transforms.Compose([transforms.Resize((96, 96)),
+                        transforms.ToTensor(),
+                        ])
+
+# Torch model
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+speech_detector = nn.Sequential(
+    nn.Conv2d(3, 16, kernel_size=(3, 3)),
+    nn.Conv2d(16, 64, kernel_size=(3, 3)),
+    nn.ReLU(),
+    nn.BatchNorm2d(64),
+    nn.MaxPool2d((2, 2)),
+    nn.Conv2d(64, 128, kernel_size=(3, 3)),
+    nn.Conv2d(128, 256, kernel_size=(3, 3)),
+    nn.ReLU(),
+    nn.BatchNorm2d(256),
+    nn.MaxPool2d((2, 2)),
+    nn.Flatten(),
+    nn.LazyLinear(512),
+    nn.LazyLinear(1)
+).to(device)
+speech_detector.load_state_dict(torch.load("model2850.pt"))
+
 # Face detection loading
 faceCascade = cv2.CascadeClassifier("haarcascade_frontalface_default.xml")
+
+# Is this working appropriately
+def predict_image(image):
+    image_tensor = p(image).float()
+    image_tensor = image_tensor.unsqueeze_(0)
+    input = Variable(image_tensor)
+    input = input.to(device)
+    output = speech_detector(input)
+    index = output.data.cpu().numpy() >= 0.7
+    return index
 
 def log(message):
     print("[LOG] " + str(dt.now()) + " - " + message)
@@ -37,14 +77,20 @@ def camera(man):
                 minSize=(30, 30),
                 flags=cv2.CASCADE_SCALE_IMAGE
             )
+
         image = ""
         if len(faces) == 0:
             image = f
         else:
             (x, y, w, h) = faces[0]
-            image = cv2.rectangle(
-                            f, (x, y), (x+w, y+h), (0, 255, 0), 2)
-        image = cv2.resize(image, (640, 480))
+            if predict_image(Image.fromarray(f[y:y+h,x:x+w])):
+                image = cv2.rectangle(
+                    f, (x, y), (x+w, y+h), (0, 255, 0), 2)
+            else:
+                image = f
+            print(predict_image(Image.fromarray(f[y:y+h,x:x+w])))
+
+        # image = cv2.resize(image, (640, 480))
         # encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 65]
         man[0] = cv2.imencode('.jpg', image)[1]
 

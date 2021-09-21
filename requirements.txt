@@ -1,2 +1,5 @@
-opencv-python==4.0.0.21
+opencv-python==4.1.2.30
 websockets==7.0
+torch==1.9.1
+torchvision==0.10.1
+pillow==8.3.2
