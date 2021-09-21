@@ -10,6 +10,9 @@ from datetime import datetime as dt
 # Keep track of our processes
 PROCESSES = []
 
+# Face detection loading
+faceCascade = cv2.CascadeClassifier("haarcascade_frontalface_default.xml")
+
 def log(message):
     print("[LOG] " + str(dt.now()) + " - " + message)
 
@@ -25,9 +28,25 @@ def camera(man):
     while r:
         cv2.waitKey(20)
         r, f = vc.read()
-        f = cv2.resize(f, (640, 480))
-        encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 65]
-        man[0] = cv2.imencode('.jpg', f, encode_param)[1]
+
+        # f = cv2.rotate(f, cv2.cv2.ROTATE_90_CLOCKWISE)
+        faces = faceCascade.detectMultiScale(
+                f,
+                scaleFactor=1.1,
+                minNeighbors=5,
+                minSize=(30, 30),
+                flags=cv2.CASCADE_SCALE_IMAGE
+            )
+        image = ""
+        if len(faces) == 0:
+            image = f
+        else:
+            (x, y, w, h) = faces[0]
+            image = cv2.rectangle(
+                            f, (x, y), (x+w, y+h), (0, 255, 0), 2)
+        image = cv2.resize(image, (640, 480))
+        # encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 65]
+        man[0] = cv2.imencode('.jpg', image)[1]
 
 # HTTP server handler
 def server():
